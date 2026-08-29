@@ -1,17 +1,14 @@
 import axios from "axios";
 
-// In local development (import.meta.env.DEV), always use "" so Vite proxies to localhost:5000.
-// In production, use VITE_API_BASE_URL if set, otherwise fallback to current origin or Render URL.
+// If VITE_API_BASE_URL is specified (e.g. separate backend domain), use it.
+// Otherwise, use relative "" so it automatically calls /api on the current host.
 const getBaseUrl = () => {
-  if (import.meta.env.DEV) {
-    // If running locally, route directly to local backend via relative proxy ""
-    return "";
-  }
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl && envUrl.trim() !== "") {
     return envUrl.replace(/\/+$/, "");
   }
-  return "https://agri-lg30.onrender.com";
+  // Default to relative path: works for both localhost proxy & unified Render single service!
+  return "";
 };
 
 const BASE_URL = getBaseUrl();
