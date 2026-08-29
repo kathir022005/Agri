@@ -10,11 +10,16 @@ const PORT = process.env.PORT || 5000;
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
-  credentials: true,
-}));
+// CORS setup — allow any origin cleanly while supporting preflights
+app.use(
+  cors({
+    origin: true, // Mirrors the incoming request origin (works across Render, Vercel, localhost)
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -18,7 +18,7 @@ const emptyRow = () => ({
 function Toast({ msg, type, onClose }) {
   useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(onClose, 3000);
+    const t = setTimeout(onClose, 4000);
     return () => clearTimeout(t);
   }, [msg, onClose]);
   if (!msg) return null;
@@ -56,7 +56,10 @@ function BillForm({ editMode }) {
           }))
         );
       })
-      .catch(() => showToast("Failed to load bill for editing.", "error"))
+      .catch((err) => {
+        const msg = err.response?.data?.message || err.message || "Failed to load bill.";
+        showToast(`Error: ${msg}`, "error");
+      })
       .finally(() => setFetching(false));
   }, [editMode, id]);
 
@@ -127,8 +130,15 @@ function BillForm({ editMode }) {
         setTimeout(() => navigate("/history"), 1200);
       }
     } catch (err) {
-      console.error(err);
-      showToast("❌ Failed to save bill. Please try again.", "error");
+      console.error("Save bill error:", err);
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        showToast(`❌ ${serverMsg}`, "error");
+      } else if (err.code === "ERR_NETWORK" || err.message?.includes("Network")) {
+        showToast("❌ Network Error: Backend server is waking up or unreachable. Retrying in a few seconds...", "error");
+      } else {
+        showToast(`❌ Save failed: ${err.message}`, "error");
+      }
     } finally {
       setLoading(false);
     }

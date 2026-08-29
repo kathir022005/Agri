@@ -1,10 +1,22 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+// If VITE_API_BASE_URL is set, use it.
+// In dev, fallback to "" (uses Vite proxy).
+// In production, fallback directly to the Render backend URL.
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim() !== "") {
+    return envUrl.replace(/\/+$/, ""); // remove trailing slash
+  }
+  return import.meta.env.DEV ? "" : "https://agri-lg30.onrender.com";
+};
+
+const BASE_URL = getBaseUrl();
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   headers: { "Content-Type": "application/json" },
+  timeout: 60000, // 60s timeout in case Render free tier is spinning up
 });
 
 // Create a new bill
