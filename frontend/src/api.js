@@ -27,7 +27,31 @@ export const updateBill = (id, data) => api.put(`/bills/${id}`, data);
 // Delete a bill
 export const deleteBill = (id) => api.delete(`/bills/${id}`);
 
-// Returns the full URL for Excel export (used as <a href> for direct download)
+// Download Excel as Blob directly through Axios
+export const downloadExcel = async (from = "", to = "") => {
+  const params = {};
+  if (from) params.from = from;
+  if (to) params.to = to;
+  const response = await api.get("/bills/export", {
+    params,
+    responseType: "blob",
+  });
+
+  const blob = new Blob([response.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const dateSuffix = from || to ? `_${from || "start"}_to_${to || "end"}` : "";
+  link.setAttribute("download", `agri-bills${dateSuffix}.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  link.parentNode.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+// Returns the full URL for Excel export (fallback)
 export const getExportUrl = (from = "", to = "") => {
   const base = BASE_URL || "";
   const params = new URLSearchParams();
