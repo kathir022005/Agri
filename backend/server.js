@@ -1,7 +1,11 @@
+const path = require("path");
+// Load dotenv from backend/.env or root .env
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+require("dotenv").config({ path: path.join(__dirname, "../.env") });
 require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const connectDB = require("./config/db");
 const billRoutes = require("./routes/billRoutes");
 
@@ -44,7 +48,6 @@ app.get("*", (req, res, next) => {
   const indexFile = path.join(frontendDistPath, "index.html");
   res.sendFile(indexFile, (err) => {
     if (err) {
-      // If frontend dist is not built, show standard API landing
       res.json({ message: "🌾 Agri Billing API is running!", timestamp: new Date() });
     }
   });
