@@ -1,14 +1,17 @@
 import axios from "axios";
 
-// If VITE_API_BASE_URL is set, use it.
-// In dev, fallback to "" (uses Vite proxy).
-// In production, fallback directly to the Render backend URL.
+// In local development (import.meta.env.DEV), always use "" so Vite proxies to localhost:5000.
+// In production, use VITE_API_BASE_URL if set, otherwise fallback to current origin or Render URL.
 const getBaseUrl = () => {
+  if (import.meta.env.DEV) {
+    // If running locally, route directly to local backend via relative proxy ""
+    return "";
+  }
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl && envUrl.trim() !== "") {
-    return envUrl.replace(/\/+$/, ""); // remove trailing slash
+    return envUrl.replace(/\/+$/, "");
   }
-  return import.meta.env.DEV ? "" : "https://agri-lg30.onrender.com";
+  return "https://agri-lg30.onrender.com";
 };
 
 const BASE_URL = getBaseUrl();
@@ -16,7 +19,7 @@ const BASE_URL = getBaseUrl();
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   headers: { "Content-Type": "application/json" },
-  timeout: 60000, // 60s timeout in case Render free tier is spinning up
+  timeout: 60000,
 });
 
 // Create a new bill
