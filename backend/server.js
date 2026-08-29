@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const connectDB = require("./config/db");
 const billRoutes = require("./routes/billRoutes");
 
@@ -13,7 +14,7 @@ connectDB();
 // CORS setup — allow any origin cleanly while supporting preflights
 app.use(
   cors({
-    origin: true, // Mirrors the incoming request origin (works across Render, Vercel, localhost)
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
@@ -23,17 +24,35 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// API Routes
 app.use("/api/bills", billRoutes);
 
-// Health check
-app.get("/", (req, res) => {
-  res.json({ message: "🌾 Agri Billing API is running!", timestamp: new Date() });
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", message: "🌾 Agri Billing API is active!", timestamp: new Date() });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found." });
+// Serve frontend static build if available (production unified deploy support)
+const frontendDistPath = path.join(__dirname, "../frontend/dist");
+app.use(express.static(frontendDistPath));
+
+// Fallback: send index.html for React Router frontend routes (if static dist exists)
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    return next();
+  }
+  const indexFile = path.join(frontendDistPath, "index.html");
+  res.sendFile(indexFile, (err) => {
+    if (err) {
+      // If frontend dist is not built, show standard API landing
+      res.json({ message: "🌾 Agri Billing API is running!", timestamp: new Date() });
+    }
+  });
+});
+
+// Global 404 handler for API routes
+app.use("/api/*", (req, res) => {
+  res.status(404).json({ message: "API route not found." });
 });
 
 // Global error handler
