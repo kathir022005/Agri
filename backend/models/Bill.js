@@ -9,10 +9,35 @@ const lineItemSchema = new mongoose.Schema({
 });
 
 const billSchema = new mongoose.Schema({
-  date: { type: Date, required: true },
-  items: { type: [lineItemSchema], required: true },
-  grandTotal: { type: Number, required: true },
-  createdAt: { type: Date, default: Date.now },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  userName: {
+    type: String,
+    required: true,
+  },
+  userAddress: {
+    type: String,
+    default: "",
+  },
+  date: {
+    type: Date,
+    required: true,
+  },
+  items: {
+    type: [lineItemSchema],
+    required: true,
+  },
+  grandTotal: {
+    type: Number,
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 module.exports = mongoose.model("Bill", billSchema);

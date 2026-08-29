@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AGRI_ITEMS } from "../config/items";
-import { createBill, getBillById, updateBill } from "../api";
+import { createBill, getBillById, updateBill, getUsersApi } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 /* ── Helpers ── */
 const today = () => new Date().toISOString().split("T")[0];
@@ -29,8 +30,11 @@ function Toast({ msg, type, onClose }) {
 function BillForm({ editMode }) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user, isAdmin } = useAuth();
 
   const [date, setDate] = useState(today());
+  const [targetUserId, setTargetUserId] = useState("");
+  const [usersList, setUsersList] = useState([]);
   const [rows, setRows] = useState([emptyRow()]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -39,6 +43,15 @@ function BillForm({ editMode }) {
   const showToast = (msg, type = "success") => setToast({ msg, type });
   const clearToast = () => setToast({ msg: "", type: "success" });
 
+  // Load farmers list if Admin
+  useEffect(() => {
+    if (isAdmin) {
+      getUsersApi()
+        .then(({ data }) => setUsersList(data))
+        .catch((err) => console.error("Error loading users for admin bill form:", err));
+    }
+  }, [isAdmin]);
+
   // Load bill data for edit mode
   useEffect(() => {
     if (!editMode || !id) return;
@@ -46,6 +59,7 @@ function BillForm({ editMode }) {
     getBillById(id)
       .then(({ data }) => {
         setDate(new Date(data.date).toISOString().split("T")[0]);
+        setTargetUserId(data.user || "");
         setRows(
           data.items.map((item) => ({
             itemCode: item.itemCode,
@@ -69,12 +83,10 @@ function BillForm({ editMode }) {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
 
-      // Recalculate total for this row
       const cap = parseFloat(field === "capacity" ? value : updated[index].capacity) || 0;
       const amt = parseFloat(field === "amount" ? value : updated[index].amount) || 0;
       updated[index].total = parseFloat((cap * amt).toFixed(2));
 
-      // If item dropdown changed, update label too
       if (field === "itemCode") {
         const found = AGRI_ITEMS.find((i) => i.code === value);
         updated[index].itemLabel = found ? found.label : value;
@@ -87,7 +99,7 @@ function BillForm({ editMode }) {
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
   const removeRow = (index) => {
-    if (rows.length === 1) return; // keep at least one row
+    if (rows.length === 1) return;
     setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -96,7 +108,10 @@ function BillForm({ editMode }) {
   /* ── Submit ── */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!date) { showToast("Please select a date.", "error"); return; }
+    if (!date) {
+      showToast("Please select a date.", "error");
+      return;
+    }
 
     const invalidRow = rows.find(
       (r) => !r.itemCode || !r.capacity || !r.amount || r.capacity <= 0 || r.amount <= 0
@@ -116,6 +131,7 @@ function BillForm({ editMode }) {
         total: r.total,
       })),
       grandTotal,
+      targetUserId: isAdmin && targetUserId ? targetUserId : undefined,
     };
 
     setLoading(true);
@@ -123,19 +139,17 @@ function BillForm({ editMode }) {
       if (editMode && id) {
         await updateBill(id, payload);
         showToast("✅ Bill updated successfully!");
-        setTimeout(() => navigate(`/bills/${id}`), 1200);
+        setTimeout(() => navigate(`/bills/${id}`), 1000);
       } else {
         await createBill(payload);
         showToast("✅ Bill saved successfully!");
-        setTimeout(() => navigate("/history"), 1200);
+        setTimeout(() => navigate("/history"), 1000);
       }
     } catch (err) {
       console.error("Save bill error:", err);
       const serverMsg = err.response?.data?.message;
       if (serverMsg) {
         showToast(`❌ ${serverMsg}`, "error");
-      } else if (err.code === "ERR_NETWORK" || err.message?.includes("Network")) {
-        showToast("❌ Network Error: Backend server is waking up or unreachable. Retrying in a few seconds...", "error");
       } else {
         showToast(`❌ Save failed: ${err.message}`, "error");
       }
@@ -158,11 +172,11 @@ function BillForm({ editMode }) {
         {editMode ? "✏️ Edit Bill" : "📝 New Bill Entry"}
       </h1>
 
-      {/* ── Date ── */}
+      {/* ── Bill Meta Card ── */}
       <div className="card">
         <div className="bill-form-header">
           <div className="form-group bill-date-group">
-            <label className="form-label">Bill Date</label>
+            <label className="form-label">Bill Date *</label>
             <input
               type="date"
               className="form-control"
@@ -170,6 +184,37 @@ function BillForm({ editMode }) {
               onChange={(e) => setDate(e.target.value)}
               required
             />
+          </div>
+
+          {/* Admin User Selector or Farmer Info Display */}
+          <div className="form-group">
+            {isAdmin ? (
+              <>
+                <label className="form-label">Farmer / Account (Admin Selection)</label>
+                <select
+                  className="form-control"
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(e.target.value)}
+                >
+                  <option value="">-- Admin (Self) --</option>
+                  {usersList.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.name} (@{u.username}) - {u.address}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <label className="form-label">Farmer / Account</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={`${user?.name || ""} (${user?.address || ""})`}
+                  readOnly
+                />
+              </>
+            )}
           </div>
         </div>
 
@@ -211,7 +256,7 @@ function BillForm({ editMode }) {
                         type="number"
                         className="form-control"
                         placeholder="0"
-                        min="0"
+                        min="0.01"
                         step="0.01"
                         value={row.capacity}
                         onChange={(e) => updateRow(idx, "capacity", e.target.value)}
@@ -225,7 +270,7 @@ function BillForm({ editMode }) {
                         type="number"
                         className="form-control"
                         placeholder="0.00"
-                        min="0"
+                        min="0.01"
                         step="0.01"
                         value={row.amount}
                         onChange={(e) => updateRow(idx, "amount", e.target.value)}

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { getBills, deleteBill, downloadExcel, getExportUrl } from "../api";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { getBills, deleteBill, downloadExcel, getExportUrl, getUsersApi } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 /* ── Confirm Dialog ── */
 function ConfirmDialog({ message, onConfirm, onCancel }) {
@@ -35,9 +36,14 @@ function QuickViewModal({ bill, onClose, onEdit }) {
           <h3 style={{ margin: 0, color: "var(--green)" }}>📄 Bill Summary</h3>
           <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
         </div>
-        <div style={{ marginBottom: "1rem", fontSize: "0.9rem", color: "var(--text-muted)" }}>
+        <div style={{ marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)" }}>
           <strong>Date:</strong> {formatDate(bill.date)}
         </div>
+        {bill.userName && (
+          <div style={{ marginBottom: "1rem", fontSize: "0.85rem", color: "var(--brown)" }}>
+            <strong>Farmer:</strong> {bill.userName} {bill.userAddress ? `(${bill.userAddress})` : ""}
+          </div>
+        )}
         <div className="table-wrapper" style={{ maxHeight: "250px", overflowY: "auto", marginBottom: "1rem" }}>
           <table>
             <thead>
@@ -78,31 +84,49 @@ function QuickViewModal({ bill, onClose, onEdit }) {
 /* ── BillList ── */
 function BillList() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, isAdmin } = useAuth();
+
+  const queryParams = new URLSearchParams(location.search);
+  const initialUserId = queryParams.get("userId") || "";
+
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [confirm, setConfirm] = useState(null); // { id, date }
+  const [selectedUserId, setSelectedUserId] = useState(initialUserId);
+  const [usersList, setUsersList] = useState([]);
+  const [confirm, setConfirm] = useState(null);
   const [quickViewBill, setQuickViewBill] = useState(null);
   const [error, setError] = useState("");
+
+  // Fetch users list for Admin dropdown
+  useEffect(() => {
+    if (isAdmin) {
+      getUsersApi()
+        .then(({ data }) => setUsersList(data))
+        .catch((err) => console.error("Error loading users:", err));
+    }
+  }, [isAdmin]);
 
   const fetchBills = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { data } = await getBills(from, to);
+      const { data } = await getBills(from, to, isAdmin ? selectedUserId : "");
       setBills(data);
     } catch (err) {
       console.error(err);
-      setError("Failed to load bills. Please ensure the backend is connected.");
+      setError("Failed to load bills. Please check your network connection.");
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, selectedUserId, isAdmin]);
 
-  // Load on mount
-  useEffect(() => { fetchBills(); }, []);
+  useEffect(() => {
+    fetchBills();
+  }, [fetchBills]);
 
   const handleFilter = (e) => {
     e.preventDefault();
@@ -112,7 +136,7 @@ function BillList() {
   const handleClear = () => {
     setFrom("");
     setTo("");
-    setTimeout(fetchBills, 0);
+    setSelectedUserId("");
   };
 
   const handleDelete = async () => {
@@ -134,11 +158,10 @@ function BillList() {
     }
     setDownloading(true);
     try {
-      await downloadExcel(from, to);
+      await downloadExcel(from, to, isAdmin ? selectedUserId : "");
     } catch (err) {
       console.error("Excel download error:", err);
-      // Fallback to direct link if blob download fails
-      window.open(getExportUrl(from, to), "_blank");
+      window.open(getExportUrl(from, to, isAdmin ? selectedUserId : ""), "_blank");
     } finally {
       setDownloading(false);
     }
@@ -170,10 +193,45 @@ function BillList() {
         />
       )}
 
-      <h1 className="page-heading">📋 Bill History & Export</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
+        <div>
+          <h1 className="page-heading" style={{ margin: 0 }}>
+            {isAdmin ? "👑 All Farmers Bill History" : "📋 My Bills History"}
+          </h1>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: "0.25rem 0 0 0" }}>
+            {isAdmin
+              ? "Admin Dashboard — View, filter, edit, and export bills across all registered farmers"
+              : `Logged in as ${user?.name || ""} (${user?.address || ""})`}
+          </p>
+        </div>
+        {isAdmin && (
+          <button className="btn btn-outline" onClick={() => navigate("/admin/users")}>
+            👥 View Farmers Directory ({usersList.length})
+          </button>
+        )}
+      </div>
 
       {/* ── Filter Bar ── */}
       <form className="filter-bar" onSubmit={handleFilter}>
+        {/* Admin Farmer Selector */}
+        {isAdmin && (
+          <div className="form-group" style={{ minWidth: "220px" }}>
+            <label className="form-label">Filter By Farmer</label>
+            <select
+              className="form-control"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+            >
+              <option value="">-- All Farmers & Admin --</option>
+              {usersList.map((u) => (
+                <option key={u._id} value={u._id}>
+                  {u.name} (@{u.username})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="form-group">
           <label className="form-label">From Date</label>
           <input
@@ -219,9 +277,9 @@ function BillList() {
       ) : bills.length === 0 ? (
         <div className="empty-state">
           <div className="icon">🌾</div>
-          <p>No bills found. Create your first bill to record transactions and export data to Excel!</p>
+          <p>No bills found for the selected criteria.</p>
           <button className="btn btn-primary" onClick={() => navigate("/")}>
-            + New Bill
+            + Create New Bill
           </button>
         </div>
       ) : (
@@ -232,6 +290,7 @@ function BillList() {
                 <tr>
                   <th>#</th>
                   <th>Date</th>
+                  {isAdmin && <th>Farmer / Account</th>}
                   <th>Items (Tanglish)</th>
                   <th style={{ textAlign: "right" }}>Grand Total (₹)</th>
                   <th>Actions</th>
@@ -242,6 +301,16 @@ function BillList() {
                   <tr key={bill._id}>
                     <td>{bills.length - idx}</td>
                     <td><strong>{formatDate(bill.date)}</strong></td>
+                    {isAdmin && (
+                      <td>
+                        <strong>{bill.userName || "Admin"}</strong>
+                        {bill.userAddress && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            {bill.userAddress}
+                          </div>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <span className="badge">{bill.items.length} item{bill.items.length !== 1 ? "s" : ""}</span>
                       <span style={{ marginLeft: "0.5rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
@@ -292,6 +361,7 @@ function BillList() {
               </tbody>
             </table>
           </div>
+
           {/* Summary footer */}
           <div style={{
             background: "var(--cream-dark)",
@@ -303,9 +373,9 @@ function BillList() {
             fontSize: "0.9rem",
             color: "var(--text-muted)",
           }}>
-            <span><strong>{bills.length}</strong> bill{bills.length !== 1 ? "s" : ""} recorded</span>
+            <span><strong>{bills.length}</strong> bill{bills.length !== 1 ? "s" : ""} listed</span>
             <span style={{ fontWeight: 800, color: "var(--green-dark)", fontSize: "1.05rem" }}>
-              Total Value: ₹ {formatAmount(bills.reduce((s, b) => s + (b.grandTotal || 0), 0))}
+              Total Turnover: ₹ {formatAmount(bills.reduce((s, b) => s + (b.grandTotal || 0), 0))}
             </span>
           </div>
         </div>

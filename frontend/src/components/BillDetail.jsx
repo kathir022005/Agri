@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getBillById, deleteBill } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 /* ── Confirm Dialog ── */
 function ConfirmDialog({ onConfirm, onCancel }) {
@@ -22,6 +23,7 @@ function ConfirmDialog({ onConfirm, onCancel }) {
 function BillDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,10 @@ function BillDetail() {
   useEffect(() => {
     getBillById(id)
       .then(({ data }) => setBill(data))
-      .catch(() => setError("Bill not found or server error."))
+      .catch((err) => {
+        const msg = err.response?.data?.message || "Bill not found or access denied.";
+        setError(msg);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -84,22 +89,27 @@ function BillDetail() {
             <span className="meta-label">Bill Date</span>
             <span className="meta-value">{formatDate(bill.date)}</span>
           </div>
+
+          <div className="meta-item">
+            <span className="meta-label">Farmer / Account</span>
+            <span className="meta-value" style={{ color: "var(--brown)" }}>
+              {bill.userName || "Admin"}
+            </span>
+            {bill.userAddress && (
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {bill.userAddress}
+              </span>
+            )}
+          </div>
+
           <div className="meta-item">
             <span className="meta-label">Total Items</span>
             <span className="meta-value">{bill.items.length}</span>
           </div>
+
           <div className="meta-item">
             <span className="meta-label">Grand Total</span>
             <span className="meta-value grand">₹ {formatAmount(bill.grandTotal)}</span>
-          </div>
-          <div className="meta-item">
-            <span className="meta-label">Recorded On</span>
-            <span className="meta-value" style={{ fontSize: "0.9rem" }}>
-              {new Date(bill.createdAt).toLocaleDateString("en-IN", {
-                day: "2-digit", month: "short", year: "numeric",
-                hour: "2-digit", minute: "2-digit",
-              })}
-            </span>
           </div>
         </div>
 

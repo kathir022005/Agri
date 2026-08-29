@@ -8,12 +8,16 @@ const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const billRoutes = require("./routes/billRoutes");
+const authRoutes = require("./routes/authRoutes");
+const { seedAdmin } = require("./controllers/authController");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB and Seed Admin
+connectDB().then(() => {
+  seedAdmin();
+});
 
 // CORS setup — allow any origin cleanly while supporting preflights
 app.use(
@@ -29,6 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/bills", billRoutes);
 
 // Health check endpoint

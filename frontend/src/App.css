@@ -117,6 +117,34 @@ img { max-width: 100%; }
   font-weight: 700;
 }
 
+.user-profile-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(0,0,0,0.18);
+  padding: 0.3rem 0.65rem 0.3rem 0.85rem;
+  border-radius: 30px;
+  border: 1px solid rgba(255,255,255,0.15);
+  margin-left: 0.5rem;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--mustard);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-link:hover { background: rgba(255,255,255,0.12); color: var(--white); }
+.nav-link.active {
+  background: var(--mustard);
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
 /* ── Main Content ── */
 .main-content {
   flex: 1;

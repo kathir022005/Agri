@@ -8,6 +8,10 @@ const {
   deleteBill,
   exportBills,
 } = require("../controllers/billController");
+const { protect } = require("../middleware/auth");
+
+// All bill routes require authentication
+router.use(protect);
 
 // IMPORTANT: /export must be declared before /:id to avoid Express
 // treating "export" as a MongoDB ObjectId parameter.
